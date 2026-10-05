@@ -46,7 +46,11 @@ export const DEFAULT_SETTINGS = {
   // guitar search
   maxCandidates: 120,
   beamWidth: 14,
-  transitionWeight: 0.55,
+  // How much voice leading and position continuity may override the best
+  // standalone shape. Measured on the sample files: at 0.55 the ballad needed
+  // 38 frets of hand movement, at 0.9 it needs 34 with one fewer jump, and
+  // raising it further changes nothing.
+  transitionWeight: 0.9,
 };
 
 /**
@@ -218,6 +222,9 @@ export function realize(score, analysis, settings = {}, context = {}) {
 
   const movement = measureSequenceMovement(optimized);
   const unplayable = transcribed.filter((t) => t.voicing.fingering && !t.voicing.fingering.playable);
+  // A piano chord spanning three octaves cannot always be stated in full on six
+  // strings. Section 26 says that is acceptable, but the user should be told.
+  const incomplete = transcribed.filter((t) => (t.voicing.missingTargets?.length ?? 0) > 0);
   const lowConfidence = analysis.regions.filter((r) => (r.confidence ?? 0) < 0.6);
 
   return {
@@ -242,6 +249,7 @@ export function realize(score, analysis, settings = {}, context = {}) {
       movement,
       unplayableCount: unplayable.length,
       outOfPositionCount: transcribed.filter((t) => t.outOfPosition).length,
+      incompleteCount: incomplete.length,
       lowConfidenceCount: lowConfidence.length,
       meanConfidence: analysis.regions.length
         ? analysis.regions.reduce((a, r) => a + (r.confidence ?? 0), 0) / analysis.regions.length

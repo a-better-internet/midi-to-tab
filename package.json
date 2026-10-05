@@ -1,0 +1,14 @@
+{
+  "name": "midi-to-tab",
+  "version": "0.1.0",
+  "description": "Browser app that reads a keyboard MIDI performance and generates a playable guitar transcription.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "serve": "node tools/serve.js"
+  },
+  "engines": { "node": ">=18" },
+  "keywords": ["midi", "guitar", "tab", "tablature", "music-theory", "transcription"],
+  "license": "MIT"
+}

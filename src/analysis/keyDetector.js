@@ -118,7 +118,11 @@ export function detectKey(notes, options = {}) {
       let inScaleMass = 0;
       for (let pc = 0; pc < 12; pc += 1) if (scaleSet.has(pc)) inScaleMass += normHist[pc];
 
-      const score = rMain * 0.46 + rBass * 0.16 + rEdge * 0.16 + inScaleMass * 0.22;
+      // Weights: the overall profile correlation leads, the bass line and the
+      // opening/closing harmonies inform it, and raw scale membership gets a
+      // real say -- an F natural is strong evidence against G major however the
+      // phrase happens to end.
+      const score = rMain * 0.44 + rBass * 0.15 + rEdge * 0.11 + inScaleMass * 0.30;
       candidates.push({ tonic, mode, score, rMain, rBass, rEdge, inScaleMass });
     }
   }

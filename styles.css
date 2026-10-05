@@ -1,0 +1,651 @@
+/*
+ * midi-to-tab -- interface styles.
+ *
+ * Dark by default because the piano roll and fretboard are both dense,
+ * data-heavy graphics that read better on a dark ground. Everything is sized
+ * from a small set of custom properties so the layout stays coherent.
+ */
+
+:root {
+  color-scheme: dark;
+
+  --bg: #12131a;
+  --surface: #1a1c26;
+  --surface-2: #21242f;
+  --surface-3: #2a2e3b;
+  --line: #333845;
+  --line-soft: #272b36;
+
+  --text: #e7e9f0;
+  --text-dim: #9aa0b1;
+  --text-faint: #6b7183;
+
+  --accent: #e0a458;
+  --accent-dim: #8a6433;
+  --accent-text: #1a1206;
+
+  --role-bass: #5b9bd5;
+  --role-root: #7ec8a9;
+  --role-chord: #6fb3a0;
+  --role-ext: #b490d8;
+  --role-melody: #e0a458;
+  --role-passing: #c8707a;
+  --role-arp: #d98cb3;
+  --role-ornament: #7d8496;
+
+  --ok: #7ec8a9;
+  --warn: #e0a458;
+  --bad: #d4717d;
+
+  --radius: 8px;
+  --radius-sm: 5px;
+  --gap: 14px;
+
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+/* `display` rules on components would otherwise beat the hidden attribute. */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 var(--sans);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ header */
+
+header.app-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.brand .sub {
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-bar .spacer { flex: 1; }
+
+.file-name {
+  font: 12px/1 var(--mono);
+  color: var(--text-dim);
+  padding: 5px 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ layout */
+
+main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 290px minmax(0, 1fr) 320px;
+  min-height: 0;
+}
+
+.panel {
+  overflow-y: auto;
+  padding: var(--gap);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.panel-left { border-right: 1px solid var(--line); background: var(--surface); }
+.panel-right { border-left: 1px solid var(--line); background: var(--surface); }
+.panel-center { padding: 0; gap: 0; overflow: hidden; }
+
+/* ------------------------------------------------------------------- cards */
+
+.card {
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex: none;
+}
+
+.card > h2 {
+  margin: 0;
+  padding: 9px 12px;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-dim);
+  background: var(--surface-3);
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card > h2 .count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.card-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+/* ------------------------------------------------------------------ fields */
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+
+.field > label {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 550;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field > label .hint {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+select, input[type="text"], input[type="number"], button {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+}
+
+select { cursor: pointer; }
+select:disabled { opacity: 0.45; cursor: not-allowed; }
+
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+button {
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+button:hover:not(:disabled) { background: var(--line); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+button.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+
+/* A segmented control, used for the mode-style settings. */
+.segmented {
+  display: flex;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+
+.segmented button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 5px 4px;
+  font-size: 11.5px;
+  border-radius: 3px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.segmented button:hover:not([aria-pressed="true"]) { background: var(--line); color: var(--text); }
+
+.switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.switch input { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+
+/* ------------------------------------------------------------- drop target */
+
+.dropzone {
+  flex: 1;
+  margin: var(--gap);
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  padding: 32px;
+  color: var(--text-dim);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dropzone.over { border-color: var(--accent); background: rgba(224, 164, 88, 0.06); }
+.dropzone h3 { margin: 0; font-size: 17px; color: var(--text); font-weight: 600; }
+.dropzone p { margin: 0; max-width: 46ch; font-size: 13px; line-height: 1.6; }
+.dropzone .examples { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+/* ------------------------------------------------------------- piano roll */
+
+.view-stack {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.view-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.view-section > header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-soft);
+  flex: none;
+}
+
+.view-section > header h2 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-dim);
+}
+
+.view-section > header .meta {
+  margin-left: auto;
+  font: 11px/1 var(--mono);
+  color: var(--text-faint);
+  display: flex;
+  gap: 12px;
+}
+
+#piano-roll-wrap { flex: none; height: 30vh; min-height: 190px; max-height: 300px; position: relative; background: var(--bg); }
+#piano-roll { display: block; width: 100%; height: 100%; cursor: crosshair; }
+
+.legend {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  background: var(--surface);
+  border-top: 1px solid var(--line-soft);
+}
+
+.legend span { display: inline-flex; align-items: center; gap: 4px; }
+.legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+/* -------------------------------------------------------------------- tab */
+
+#tab-view { flex: 1; min-height: 0; overflow: auto; padding: 14px 12px 24px; background: var(--bg); }
+
+.tab-system { margin-bottom: 20px; }
+
+.tab-row {
+  display: flex;
+  align-items: stretch;
+  min-width: min-content;
+}
+
+.tab-labels {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  padding-right: 4px;
+  font: 11px/1 var(--mono);
+  color: var(--text-faint);
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+  z-index: 2;
+}
+
+.tab-labels .lbl {
+  height: 21px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 24px;
+}
+
+.tab-labels .lbl.spacer-row { height: 18px; }
+
+.tab-measures { display: flex; flex: none; }
+
+.tab-measure {
+  display: flex;
+  border-left: 1px solid var(--line);
+  padding-left: 1px;
+  position: relative;
+}
+
+.tab-measure:last-child { border-right: 1px solid var(--line); }
+
+.tab-measure .bar-number {
+  position: absolute;
+  top: 0;
+  left: 3px;
+  font: 9.5px/1 var(--mono);
+  color: var(--text-faint);
+}
+
+.tab-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 32px;
+  padding: 0 1px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.tab-column:hover { background: rgba(255, 255, 255, 0.04); }
+.tab-column.selected { background: rgba(224, 164, 88, 0.14); outline: 1px solid var(--accent-dim); }
+
+.tab-chord {
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 11px/1 var(--sans);
+  color: var(--accent);
+  white-space: nowrap;
+  padding: 0 3px;
+}
+
+.tab-chord.low-confidence { color: var(--bad); text-decoration: underline dotted; }
+
+.tab-cell {
+  height: 21px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  font: 12px/1 var(--mono);
+  color: var(--text);
+  /* The horizontal string line, drawn through the middle of every cell. */
+  background-image: linear-gradient(
+    to bottom,
+    transparent calc(50% - 0.5px),
+    var(--line) calc(50% - 0.5px),
+    var(--line) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
+}
+
+.tab-cell span {
+  background: var(--bg);
+  padding: 0 2.5px;
+  border-radius: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+.tab-column:hover .tab-cell span,
+.tab-column.selected .tab-cell span { background: var(--surface-2); }
+
+.tab-cell .technique {
+  position: absolute;
+  left: 0;
+  font-size: 9.5px;
+  color: var(--accent);
+  z-index: 1;
+  background: var(--bg);
+}
+
+.tab-footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px 0;
+}
+
+/* ----------------------------------------------------------- chord editor */
+
+.event-detail .rows { display: flex; flex-direction: column; gap: 7px; }
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  align-items: baseline;
+}
+
+.detail-row .k { color: var(--text-faint); white-space: nowrap; }
+.detail-row .v { font-family: var(--mono); text-align: right; }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 5px; }
+
+.chip {
+  font: 11.5px/1 var(--mono);
+  padding: 4px 7px;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  color: var(--text-dim);
+}
+
+.chip.role-BASS { color: var(--role-bass); border-color: color-mix(in srgb, var(--role-bass) 40%, var(--line)); }
+.chip.role-ROOT { color: var(--role-root); border-color: color-mix(in srgb, var(--role-root) 40%, var(--line)); }
+.chip.role-CHORD_TONE { color: var(--role-chord); border-color: color-mix(in srgb, var(--role-chord) 40%, var(--line)); }
+.chip.role-EXTENSION { color: var(--role-ext); border-color: color-mix(in srgb, var(--role-ext) 40%, var(--line)); }
+.chip.role-MELODY { color: var(--role-melody); border-color: color-mix(in srgb, var(--role-melody) 40%, var(--line)); }
+.chip.role-PASSING_TONE,
+.chip.role-APPROACH_TONE { color: var(--role-passing); border-color: color-mix(in srgb, var(--role-passing) 40%, var(--line)); }
+.chip.role-ARPEGGIO { color: var(--role-arp); border-color: color-mix(in srgb, var(--role-arp) 40%, var(--line)); }
+.chip.role-ORNAMENT { color: var(--role-ornament); }
+
+.candidate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.candidate.active { border-color: var(--accent); background: rgba(224, 164, 88, 0.1); }
+.candidate .sym { font: 600 12.5px/1 var(--mono); min-width: 56px; }
+.candidate .bar { flex: 1; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.candidate .bar i { display: block; height: 100%; background: var(--accent); }
+.candidate .pct { font: 11px/1 var(--mono); color: var(--text-dim); min-width: 30px; text-align: right; }
+.candidate .why { font-size: 10.5px; color: var(--text-faint); }
+
+.voicing-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font: 11.5px/1 var(--mono);
+}
+
+.voicing-option.active { border-color: var(--accent); background: rgba(224, 164, 88, 0.1); }
+.voicing-option .shape { letter-spacing: 0.05em; }
+.voicing-option .tag { margin-left: auto; font-size: 10px; color: var(--text-faint); }
+
+#fretboard-diagram { display: block; width: 100%; height: 160px; }
+
+.empty-note {
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.6;
+  font-style: italic;
+}
+
+/* ---------------------------------------------------------------- transport */
+
+.transport {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+.transport .controls { display: flex; gap: 6px; }
+
+.transport button.icon {
+  width: 34px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 13px;
+}
+
+.transport .scrub { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 120px; }
+.transport .time { font: 11px/1 var(--mono); color: var(--text-dim); min-width: 92px; }
+
+/* ------------------------------------------------------------------ status */
+
+.status-list { display: flex; flex-direction: column; gap: 6px; }
+
+.status-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12px;
+}
+
+.status-item .k { color: var(--text-faint); min-width: 92px; }
+.status-item .v { font-family: var(--mono); font-size: 11.5px; }
+.status-item .v.ok { color: var(--ok); }
+.status-item .v.warn { color: var(--warn); }
+.status-item .v.bad { color: var(--bad); }
+
+.notice {
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.5;
+  background: rgba(212, 113, 125, 0.12);
+  border: 1px solid rgba(212, 113, 125, 0.35);
+  color: #f0c2c8;
+}
+
+.notice.working {
+  background: rgba(224, 164, 88, 0.1);
+  border-color: rgba(224, 164, 88, 0.3);
+  color: #f0d6b0;
+}
+
+.track-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  border: 1px solid transparent;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.track-row.selected { border-color: var(--accent-dim); background: rgba(224, 164, 88, 0.08); }
+.track-row.drums { opacity: 0.5; cursor: not-allowed; }
+.track-row input { accent-color: var(--accent); }
+.track-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track-row .role { font: 10px/1 var(--mono); color: var(--text-faint); }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Narrow screens: stack the panels instead of trying to keep three columns. */
+@media (max-width: 1100px) {
+  main { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr) auto; overflow-y: auto; }
+  .panel-left, .panel-right { border: none; border-bottom: 1px solid var(--line); }
+  .panel-center { min-height: 60vh; }
+}
