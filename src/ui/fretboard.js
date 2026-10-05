@@ -53,12 +53,13 @@ export class FretboardView {
     const frets = this.voicing.frets;
     const capo = this.tuning.capo ?? 0;
 
-    // Choose a 5-fret window that contains the shape.
+    // A chord box starts at the lowest fretted note, the way printed chord
+    // charts do, so the position marker names the fret the dots are actually on.
     const fretted = frets.filter((f) => f !== null && f > capo);
     const lowest = fretted.length ? Math.min(...fretted) : 1;
     const highest = fretted.length ? Math.max(...fretted) : 1;
     const windowSize = Math.max(4, highest - lowest + 1);
-    const firstFret = fretted.length ? Math.max(capo + 1, Math.min(lowest, highest - windowSize + 1)) : capo + 1;
+    const firstFret = fretted.length ? Math.max(capo + 1, lowest) : capo + 1;
     const showNut = firstFret <= capo + 1;
 
     const plotW = rect.width - PAD.left - PAD.right;

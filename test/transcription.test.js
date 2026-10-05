@@ -527,3 +527,57 @@ test('a dense ten-note piano chord becomes a playable guitar voicing (section 40
   assert.ok(voicing.pitchSet.has(11), 'the major seventh is kept');
   assert.equal(voicing.lowestPitch % 12, 0, 'C stays in the bass');
 });
+
+test('pitch bends in the performance become bend marks in the tab (section 28)', () => {
+  // One note held for two beats, bent up a whole tone part way through.
+  const bytes = writeMidi({
+    tracks: [{
+      name: 'Lead',
+      channel: 0,
+      notes: beatsToTicks([{ pitch: 64, start: 0, duration: 2 }]),
+      bends: [
+        { tick: 0, value: 0 },
+        { tick: 240, value: 8191 }, // +2 semitones at the default range
+        { tick: 960, value: 0 },
+      ],
+    }],
+  });
+  const score = normalizeMidi(parseMidi(bytes));
+
+  const note = score.notes[0];
+  assert.ok(note.bend, 'the bend should be attached to the note it affects');
+  assert.ok(Math.abs(note.bend.semitones - 2) < 0.01, `bent ${note.bend.semitones} semitones`);
+  assert.equal(note.bend.direction, 'up');
+  assert.equal(note.bend.releases, true, 'it returns to pitch, so it is a bend and release');
+
+  const result = transcribe(score);
+  const marks = result.tab.columns.flatMap((c) => c.techniques).filter((t) => t.type.startsWith('bend'));
+  assert.equal(marks.length, 1);
+  assert.equal(marks[0].label, 'full');
+  assert.equal(marks[0].type, 'bend and release');
+  assert.match(renderTabAscii(result.tab), /b/);
+});
+
+test('vibrato and pitch drift are not reported as bends', () => {
+  const bytes = writeMidi({
+    tracks: [{
+      name: 'Lead',
+      channel: 0,
+      notes: beatsToTicks([{ pitch: 64, start: 0, duration: 2 }]),
+      // +/- 0.1 semitone wobble: expression, not a bend.
+      bends: [
+        { tick: 120, value: 400 }, { tick: 240, value: -400 },
+        { tick: 360, value: 400 }, { tick: 480, value: -400 },
+      ],
+    }],
+  });
+  const score = normalizeMidi(parseMidi(bytes));
+  assert.equal(score.notes[0].bend, null);
+  const result = transcribe(score);
+  assert.equal(result.tab.columns.flatMap((c) => c.techniques).length, 0);
+});
+
+test('a note with no bend data is unaffected', () => {
+  const score = keyboardScore();
+  assert.ok(score.notes.every((n) => n.bend === null));
+});

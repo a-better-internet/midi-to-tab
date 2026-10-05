@@ -68,20 +68,31 @@ export function writeMidi(spec) {
       data.push(...varint(0), 0xc0 | channel, track.program & 0x7f);
     }
 
-    // Flatten to a sorted event list (note-ons and note-offs interleaved).
+    // Flatten to a sorted event list (note-ons, note-offs and bends interleaved).
     const events = [];
     for (const note of track.notes) {
-      events.push({ tick: note.startTicks, on: true, pitch: note.pitch, velocity: note.velocity ?? 80 });
-      events.push({ tick: note.startTicks + note.durationTicks, on: false, pitch: note.pitch, velocity: 0 });
+      events.push({ kind: 'on', tick: note.startTicks, pitch: note.pitch, velocity: note.velocity ?? 80 });
+      events.push({ kind: 'off', tick: note.startTicks + note.durationTicks, pitch: note.pitch, velocity: 0 });
+    }
+    // bends: [{ tick, value }] where value is -8192..8191
+    for (const bend of track.bends ?? []) {
+      events.push({ kind: 'bend', tick: bend.tick, value: bend.value });
     }
     // Offs before ons at the same tick keeps repeated pitches unambiguous.
-    events.sort((a, b) => a.tick - b.tick || (a.on === b.on ? a.pitch - b.pitch : a.on ? 1 : -1));
+    const order = { off: 0, bend: 1, on: 2 };
+    events.sort((a, b) => a.tick - b.tick || order[a.kind] - order[b.kind] || (a.pitch ?? 0) - (b.pitch ?? 0));
 
     let last = 0;
     for (const event of events) {
       data.push(...varint(event.tick - last));
       last = event.tick;
-      data.push(event.on ? 0x90 | channel : 0x80 | channel, event.pitch & 0x7f, event.velocity & 0x7f);
+      if (event.kind === 'bend') {
+        const raw = event.value + 8192;
+        data.push(0xe0 | channel, raw & 0x7f, (raw >> 7) & 0x7f);
+      } else {
+        data.push(event.kind === 'on' ? 0x90 | channel : 0x80 | channel,
+          event.pitch & 0x7f, event.velocity & 0x7f);
+      }
     }
     data.push(...varint(0), 0xff, 0x2f, 0x00);
     out.push(...chunk('MTrk', data));

@@ -87,6 +87,10 @@ difference between 105 frets of hand movement and 34.
 the way through. Note values shown in the tab are *descriptions* of the real
 durations, which are kept alongside them — nothing is snapped to a grid.
 
+**Technique comes from the performance.** Hammer-ons, pull-offs and slides are
+inferred from how closely successive notes on one string join up; bends are read
+directly from the file's pitch-bend data, with vibrato-sized wobble ignored.
+
 ## Using it
 
 Drop a file in. The app picks what looks like the keyboard part and transcribes

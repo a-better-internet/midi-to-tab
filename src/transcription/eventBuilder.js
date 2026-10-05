@@ -271,6 +271,7 @@ export function analyzeHarmony(notes, options = {}) {
         start: note.start,
         duration: note.duration,
         velocity: note.velocity,
+        bend: note.bend ?? null,
         role: role ? role.role : ROLES.UNKNOWN,
         chordFunction: role ? role.chordFunction : 'NON_CHORD',
         priority: role ? role.priority : ROLE_PRIORITY[ROLES.UNKNOWN],

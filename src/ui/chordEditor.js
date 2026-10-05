@@ -104,7 +104,7 @@ export class ChordEditor {
       }
     }
 
-    addRow('Position', `bar ${event.roman !== undefined ? '' : ''}${this._barLabel(item)}`);
+    addRow('Position', `bar ${this._barLabel(item)}`);
     addRow('Duration', `${event.duration.toFixed(3)} beats`);
     if (event.spreadMs > 1) addRow('Onset spread', `${event.spreadMs.toFixed(1)} ms`);
     if (event.arpeggio) addRow('Figure', `${event.arpeggio.contour} arpeggio`);

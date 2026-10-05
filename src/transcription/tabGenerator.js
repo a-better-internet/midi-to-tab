@@ -115,6 +115,33 @@ export function buildTab(transcribed, context, options = {}) {
   columns.sort((a, b) => a.start - b.start);
   columns.forEach((c, i) => { c.index = i; });
 
+  // Bends come straight from the performance's pitch-bend data rather than
+  // being inferred, so they are marked before the legato pass.
+  for (const column of columns) {
+    const bent = (column.notes ?? []).find((n) => n.bend && Math.abs(n.bend.semitones) >= 0.4);
+    if (!bent) continue;
+    // Put the mark on the string carrying the closest pitch to the bent note.
+    const target = column.voicing.played.reduce(
+      (best, p) => (Math.abs(p.pitch - bent.pitch) < Math.abs(best.pitch - bent.pitch) ? p : best),
+      column.voicing.played[0],
+    );
+    if (!target) continue;
+    // Guitar naming: a "full" bend is a whole tone, a half bend a semitone.
+    const steps = Math.abs(bent.bend.semitones);
+    const label = steps >= 2.75 ? '2'
+      : steps >= 2.4 ? '1 1/2'
+        : steps >= 1.6 ? 'full'
+          : steps >= 0.8 ? '1/2'
+            : '1/4';
+    column.techniques.push({
+      type: bent.bend.releases ? 'bend and release' : 'bend',
+      symbol: bent.bend.direction === 'up' ? 'b' : 'r',
+      string: target.string,
+      semitones: bent.bend.semitones,
+      label,
+    });
+  }
+
   // Technique inference across successive single-note columns.
   const lastOnString = new Map();
   for (const column of columns) {

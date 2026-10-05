@@ -58,6 +58,13 @@ export function gmInstrumentName(program) {
 const SUSTAIN_CONTROLLER = 64;
 
 /**
+ * Default pitch-bend range in semitones. The real range is set per-instrument
+ * through RPN 0, which most keyboard exports never send, so +/- 2 is the
+ * sensible assumption.
+ */
+const DEFAULT_BEND_RANGE = 2;
+
+/**
  * Extract notes from one track's event list.
  * Handles overlapping identical pitches (a stack per pitch/channel) and
  * optionally extends releases using the sustain pedal.
@@ -69,6 +76,7 @@ function extractTrackNotes(track, timing, options) {
   const programByChannel = new Map();
   const pedalDown = new Map(); // channel -> boolean
   const sustainedByChannel = new Map(); // channel -> notes waiting for pedal release
+  const bendEvents = []; // { tick, channel, semitones }
   let trackName = null;
   let instrumentName = null;
 
@@ -135,8 +143,38 @@ function extractTrackNotes(track, timing, options) {
         break;
       }
 
+      case 'pitchBend':
+        bendEvents.push({
+          tick: event.tick,
+          channel: event.channel,
+          semitones: (event.value / 8192) * DEFAULT_BEND_RANGE,
+        });
+        break;
+
       default:
         break;
+    }
+  }
+
+  // Attach each bend to the notes sounding on its channel when it happened.
+  if (bendEvents.length > 0) {
+    for (const note of notes) {
+      const during = bendEvents.filter(
+        (b) => b.channel === note.channel
+          && b.tick >= note.startTick
+          && b.tick <= (note.endTick ?? note.startTick),
+      );
+      if (during.length === 0) continue;
+      let peak = 0;
+      for (const bend of during) {
+        if (Math.abs(bend.semitones) > Math.abs(peak)) peak = bend.semitones;
+      }
+      if (Math.abs(peak) < 0.25) continue; // vibrato and drift, not a bend
+      note.bend = {
+        semitones: peak,
+        direction: peak > 0 ? 'up' : 'down',
+        releases: Math.abs(during[during.length - 1].semitones) < Math.abs(peak) * 0.4,
+      };
     }
   }
 
@@ -197,6 +235,7 @@ export function normalizeMidi(midi, options = {}) {
           durationSec: Math.max(endSec - startSec, 1e-6),
           endSec,
           program: note.program,
+          bend: note.bend ?? null,
         };
       })
       .sort((a, b) => a.start - b.start || a.pitch - b.pitch);
