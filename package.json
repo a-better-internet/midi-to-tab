@@ -6,9 +6,19 @@
   "private": true,
   "scripts": {
     "test": "node --test test/*.test.js",
-    "serve": "node tools/serve.js"
+    "serve": "node tools/serve.js",
+    "audio-check": "node tools/audioCheck.mjs"
   },
-  "engines": { "node": ">=18" },
-  "keywords": ["midi", "guitar", "tab", "tablature", "music-theory", "transcription"],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "midi",
+    "guitar",
+    "tab",
+    "tablature",
+    "music-theory",
+    "transcription"
+  ],
   "license": "MIT"
 }

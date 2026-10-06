@@ -11,8 +11,9 @@ rhythm, approximate voicing, voice leading and playability.
 No build step, no dependencies, no uploads. Everything runs in the browser.
 
 ```sh
-npm run serve     # then open http://localhost:8080
-npm test          # 124 tests, Node's built-in runner
+npm run serve        # then open http://localhost:8080
+npm test             # 148 tests, Node's built-in runner, no dependencies
+npm run audio-check  # renders the audio in a real browser and measures it
 ```
 
 (Browsers refuse to load ES modules over `file://`, so the page has to be
@@ -91,6 +92,15 @@ durations, which are kept alongside them — nothing is snapped to a grid.
 inferred from how closely successive notes on one string join up; bends are read
 directly from the file's pitch-bend data, with vibrato-sized wobble ignored.
 
+**The synthesis is deliberately plain.** Each guitar note is one band-limited
+oscillator shaped by a plucked envelope and a lowpass that sweeps downward, so
+the upper partials die first. Karplus-Strong would sound better, but in Web
+Audio it fails twice over: the biquad used for string damping has passband gain
+above 1, so feedback near unity makes the loop *grow* rather than decay, and a
+DelayNode inside a feedback cycle is clamped to 128 samples, which puts every
+note above about 344 Hz at the wrong pitch. Doing it properly needs an
+AudioWorklet. Pitch accuracy matters more here than timbre.
+
 ## Using it
 
 Drop a file in. The app picks what looks like the keyboard part and transcribes
@@ -108,9 +118,25 @@ voicing and re-classifies the notes underneath it; picking a different shape
 leaves the harmony alone. Neither re-reads the MIDI — the analysis stays live, so
 nothing is lost by experimenting.
 
+### Playing along
+
 The transport plays the original MIDI, the generated guitar part, or both
 together, which is the only real test of whether a theoretically correct
 transcription actually sounds right.
+
+For learning a part rather than just auditioning it:
+
+- **Click any chord to hear it.** Clicking a column in the tab, a note in the
+  piano roll, or an alternative shape in the fretboard panel plays it straight
+  away, lightly strummed. That is the quickest way to connect a shape on the
+  page with a sound.
+- **The tab follows the music.** The sounding column is highlighted and scrolled
+  into view, but only while playback is running — scrolling the tab out from
+  under you while you are reading it would be worse than not following at all.
+- **Speed** plays at 50–125% without changing pitch, for working a passage up
+  to tempo.
+- **Count-in** gives you a bar or two of clicks before the music starts, so you
+  can come in with it.
 
 ### Controls
 
@@ -125,6 +151,7 @@ transcription actually sounds right.
 | Tuning / capo / frets | 6-, 7- and 8-string guitar, bass, ukulele, banjo, mandolin, custom |
 | Chord grouping window | Overrides the automatic simultaneity window |
 | Harmonic context weight | How much the progression model may override local evidence |
+| Speed / count-in | Practice tempo and a click-track lead-in, for playing along |
 
 ## Layout
 
@@ -145,6 +172,14 @@ Nothing under `analysis/`, `guitar/` or `transcription/` touches the DOM, and
 nothing under `ui/` makes a musical decision. That separation is why the engine
 runs under `node --test` at all, and why retargeting to bass or ukulele is a
 tuning change rather than a port.
+
+The audio layer is tested two ways, because neither alone is enough. The unit
+tests drive it against a stubbed Web Audio API (`test/fixtures/fakeAudio.js`),
+which catches scheduling and lifecycle bugs exactly but cannot tell you whether
+anything is audible. `npm run audio-check` renders the real graph in a real
+browser and measures the samples, which catches a voice that has gone silent or
+diverged. An early version of the guitar voice passed every other check while
+producing a signal of around 1e28 that silenced the whole app.
 
 ## Limitations
 

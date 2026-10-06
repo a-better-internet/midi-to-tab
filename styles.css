@@ -417,6 +417,23 @@ button.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(
 .tab-column:hover { background: rgba(255, 255, 255, 0.04); }
 .tab-column.selected { background: rgba(224, 164, 88, 0.14); outline: 1px solid var(--accent-dim); }
 
+/* The column sounding right now. This is what you follow when playing along,
+   so it reads more strongly than the selection. */
+.tab-column.playing {
+  background: rgba(126, 200, 169, 0.20);
+  box-shadow: inset 0 0 0 1px rgba(126, 200, 169, 0.55);
+}
+
+.tab-column.playing .tab-cell span {
+  background: #1d3730;
+  color: #d8f3e8;
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tab-column { transition: background 0.08s linear; }
+}
+
 .tab-chord {
   height: 18px;
   display: flex;
@@ -581,6 +598,26 @@ button.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(
 
 .transport .scrub { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 120px; }
 .transport .time { font: 11px/1 var(--mono); color: var(--text-dim); min-width: 92px; }
+
+.transport .group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.transport select {
+  padding: 4px 6px;
+  font-size: 11.5px;
+}
+
+.count-in-flash {
+  font: 600 12px/1 var(--mono);
+  color: var(--ok);
+  min-width: 56px;
+}
 
 /* ------------------------------------------------------------------ status */
 

@@ -142,7 +142,7 @@ function afterResult() {
   selectEvent(stillThere ? state.selectedEventId : (firstChord ? firstChord.event.id : null));
 }
 
-function selectEvent(eventId) {
+function selectEvent(eventId, { audition = false } = {}) {
   state.selectedEventId = eventId;
   pianoRoll.setSelected(eventId);
   tabRenderer.setSelected(eventId);
@@ -154,6 +154,20 @@ function selectEvent(eventId) {
   chordEditor.select(eventId);
   const item = state.result.transcribed.find((t) => t.event.id === eventId);
   fretboardView.show(item ? item.voicing : null, state.result.tuning);
+
+  // Hearing the shape is the whole point of picking it, so a click plays it.
+  // Selections the app makes for itself (after a re-transcription, say) stay
+  // silent.
+  if (audition && item) auditionVoicing(item.voicing);
+}
+
+function auditionVoicing(voicing) {
+  if (!voicing || player.playing) return;
+  player.audition(voicing.played.map((p) => ({
+    pitch: p.pitch,
+    string: p.string,
+    stringCount: state.result.tuning.stringCount,
+  }))).catch((error) => showNotice(`Audio could not start: ${error.message}`));
 }
 
 /* -------------------------------------------------------------- statistics */
@@ -256,6 +270,7 @@ function onChordChange(regionIndex, chord) {
 }
 
 function onVoicingChange(eventId, voicing) {
+  auditionVoicing(voicing);
   state.result = applyVoicingChoice(state.result, eventId, voicing);
   pianoRoll.setResult(state.result);
   tabRenderer.setTab(state.result.tab);
@@ -280,9 +295,10 @@ function formatTime(beat) {
 
 function updateTransport(playbackState) {
   const beat = playbackState?.beat ?? 0;
+  const playing = playbackState?.playing ?? false;
   const endBeat = state.result?.tab.totalBeats ?? 0;
   $('play-button').textContent = playbackState?.playing ? '⏸' : '▶';
-  $('play-button').setAttribute('aria-label', playbackState?.playing ? 'Pause' : 'Play');
+  $('play-button').setAttribute('aria-label', playing ? 'Pause' : 'Play');
   const scrub = $('scrub');
   if (document.activeElement !== scrub) {
     scrub.max = String(Math.max(1, endBeat));
@@ -290,8 +306,13 @@ function updateTransport(playbackState) {
   }
   const bar = state.score ? state.score.timing.barAndBeat(beat).bar : 1;
   $('time-display').textContent = `${formatTime(beat)} / ${formatTime(endBeat)}  bar ${bar}`;
+  $('count-in-flash').textContent = playbackState?.countingIn ? 'count in…' : '';
+
   pianoRoll?.setPlayhead(beat);
-  tabRenderer?.setPlayhead(beat);
+  // Following only while playing: scrolling the tab out from under someone
+  // who is reading it would be worse than not following at all.
+  if (playing) tabRenderer?.setPlayhead(beat, { follow: true });
+  else tabRenderer?.clearPlayhead();
 }
 
 /* ------------------------------------------------------------------ exports */
@@ -447,6 +468,14 @@ function wireTransport() {
     player.volume = Number(event.target.value) / 100;
   });
 
+  $('speed').addEventListener('change', (event) => {
+    player.setRate(Number(event.target.value));
+  });
+
+  $('count-in').addEventListener('change', (event) => {
+    player.countInBeats = Number(event.target.value);
+  });
+
   player.onTick(updateTransport);
   updateTransport(null);
 
@@ -462,10 +491,12 @@ function wireTransport() {
 function init() {
   pianoRoll = new PianoRoll($('piano-roll'), {
     onSeek: (beat) => player.seek(beat),
-    onSelect: (eventId) => { if (eventId !== null) selectEvent(eventId); },
+    onSelect: (eventId) => { if (eventId !== null) selectEvent(eventId, { audition: true }); },
   });
   fretboardView = new FretboardView($('fretboard-diagram'));
-  tabRenderer = new TabRenderer($('tab-view'), { onSelect: selectEvent });
+  tabRenderer = new TabRenderer($('tab-view'), {
+    onSelect: (eventId) => selectEvent(eventId, { audition: true }),
+  });
   chordEditor = new ChordEditor({
     detail: $('event-detail'),
     candidates: $('chord-candidates'),
@@ -489,5 +520,6 @@ if (document.readyState === 'loading') {
   init();
 }
 
-// Exposed for debugging in the console; the engine itself never reads this.
-globalThis.midiToTab = { state, retranscribe };
+// Exposed for debugging in the console and for the browser audio check;
+// the engine itself never reads this.
+globalThis.midiToTab = { state, retranscribe, player };

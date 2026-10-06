@@ -1,14 +1,23 @@
 /**
  * Guitar voice (brief section 35).
  *
- * A plucked-string tone built from a noise burst through a tuned comb filter --
- * Karplus-Strong, essentially -- which gives a far more convincing pluck than
- * stacked oscillators and costs almost nothing. Each string gets its own
- * feedback delay line, so the brightness and decay vary with register the way a
- * real guitar's do.
+ * The audition exists so the user can tell whether a theoretically correct
+ * voicing actually sounds right, which means two things matter above all:
+ * every note must sound, and every note must be at the right pitch.
  *
- * The point of the audition is to tell the user whether a theoretically correct
- * voicing actually sounds right, so the tone has to be good enough to judge.
+ * This is a single band-limited oscillator per note, shaped by a plucked
+ * envelope and a lowpass that sweeps downward so the upper partials die away
+ * first -- which is most of what makes a plucked string sound plucked.
+ *
+ * An earlier version used Karplus-Strong (a noise burst through a delay line
+ * fed back on itself). It is the better-sounding technique in principle, but
+ * in Web Audio it fails twice over: the biquad used for string damping has
+ * passband gain above 1, so any feedback near unity makes the loop *grow*
+ * instead of decay, and a DelayNode inside a feedback cycle is clamped to one
+ * render quantum (128 samples), which puts every note above roughly 344 Hz at
+ * the wrong pitch. Doing it properly needs an AudioWorklet. This approach is
+ * unconditionally stable and exact across the whole range, which is what the
+ * feature is for.
  */
 
 const A4 = 440;
@@ -17,51 +26,80 @@ export function midiToFrequency(pitch) {
   return A4 * 2 ** ((pitch - 69) / 12);
 }
 
-/** One-shot noise buffer, reused by every pluck. */
-function getNoiseBuffer(ctx, cache) {
+/**
+ * Harmonic spectrum of a plucked steel string, as a Fourier series.
+ *
+ * Amplitudes fall off roughly as 1/n, with the even harmonics slightly
+ * recessed, which is the characteristic of a string plucked away from its
+ * midpoint. Index 0 is the DC term and must stay zero.
+ */
+function buildPluckWave(context, cache) {
+  if (cache.wave) return cache.wave;
+  const harmonics = 16;
+  const real = new Float32Array(harmonics + 1);
+  const imag = new Float32Array(harmonics + 1);
+  for (let n = 1; n <= harmonics; n += 1) {
+    const even = n % 2 === 0;
+    imag[n] = (1 / n ** 1.1) * (even ? 0.6 : 1) * Math.sin((n * Math.PI) / 5);
+  }
+  cache.wave = context.createPeriodicWave(real, imag, { disableNormalization: false });
+  return cache.wave;
+}
+
+/** A short noise burst for the pick attack, shared by every note. */
+function buildPickNoise(context, cache) {
   if (cache.noise) return cache.noise;
-  const length = Math.floor(ctx.sampleRate * 0.12);
-  const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+  const length = Math.floor(context.sampleRate * 0.03);
+  const buffer = context.createBuffer(1, length, context.sampleRate);
   const data = buffer.getChannelData(0);
   for (let i = 0; i < length; i += 1) {
-    // Decaying noise: a sharp pick attack rather than a wash.
-    data[i] = (Math.random() * 2 - 1) * (1 - i / length) ** 2;
+    data[i] = (Math.random() * 2 - 1) * (1 - i / length) ** 3;
   }
   cache.noise = buffer;
-  return buffer;
+  return cache.noise;
+}
+
+/**
+ * How long a string rings, in seconds, before the note is released.
+ * Low strings sustain considerably longer than high ones.
+ */
+export function ringTime(pitch, duration) {
+  const registerFactor = Math.max(0, Math.min(1, (84 - pitch) / 44));
+  return Math.max(0.4, Math.min(4.5, duration + 0.6 + 2.2 * registerFactor));
 }
 
 export class GuitarSynth {
   /**
-   * @param {AudioContext} context
+   * @param {BaseAudioContext} context
    * @param {AudioNode} destination
    */
   constructor(context, destination) {
     this.context = context;
     this.cache = {};
+    this.voices = new Set();
 
     this.output = context.createGain();
-    this.output.gain.value = 0.9;
+    this.output.gain.value = 0.5;
 
-    // A gentle body resonance keeps it from sounding like a sine wave.
+    // A gentle body resonance, well below unity so it cannot add energy.
     this.body = context.createBiquadFilter();
     this.body.type = 'peaking';
-    this.body.frequency.value = 220;
-    this.body.Q.value = 1.1;
-    this.body.gain.value = 3;
-
-    this.tone = context.createBiquadFilter();
-    this.tone.type = 'lowpass';
-    this.tone.frequency.value = 4200;
-    this.tone.Q.value = 0.4;
+    this.body.frequency.value = 200;
+    this.body.Q.value = 1.2;
+    this.body.gain.value = 2.5;
 
     this.output.connect(this.body);
-    this.body.connect(this.tone);
-    this.tone.connect(destination);
+    this.body.connect(destination);
   }
 
   set gain(value) {
     this.output.gain.value = value;
+  }
+
+  /** Release every sounding voice and free its nodes. */
+  allNotesOff() {
+    for (const voice of this.voices) voice.stop();
+    this.voices.clear();
   }
 
   /**
@@ -70,71 +108,95 @@ export class GuitarSynth {
    * @param {object} note
    * @param {number} note.pitch MIDI pitch
    * @param {number} note.when AudioContext time to start
-   * @param {number} note.duration seconds
+   * @param {number} note.duration seconds the note is held
    * @param {number} [note.velocity=90]
-   * @param {number} [note.string] string index, used to colour the tone
+   * @param {number} [note.string] string index, used for stereo placement
+   * @param {number} [note.stringCount=6]
    */
   pluck({ pitch, when, duration, velocity = 90, string = null, stringCount = 6 }) {
     const ctx = this.context;
     const frequency = midiToFrequency(pitch);
-    const level = (velocity / 127) ** 1.4;
+    if (!Number.isFinite(frequency) || frequency <= 0) return null;
 
-    // Lower strings ring longer and darker.
-    const registerFactor = Math.max(0.25, Math.min(1, (84 - pitch) / 40));
-    const ring = Math.max(0.35, Math.min(3.4, duration + 0.9 * registerFactor));
+    const level = Math.max(0.0005, ((velocity / 127) ** 1.4) * 0.5);
+    const ring = ringTime(pitch, duration);
+    const nodes = [];
 
-    const source = ctx.createBufferSource();
-    source.buffer = getNoiseBuffer(ctx, this.cache);
+    // --- the string itself -------------------------------------------------
+    const osc = ctx.createOscillator();
+    osc.setPeriodicWave(buildPluckWave(ctx, this.cache));
+    osc.frequency.value = frequency;
 
-    const exciter = ctx.createBiquadFilter();
-    exciter.type = 'lowpass';
-    exciter.frequency.value = Math.min(ctx.sampleRate / 2.2, frequency * 14 + 900);
-
-    // The comb filter: a delay of one period, fed back on itself.
-    const period = 1 / frequency;
-    const delay = ctx.createDelay(Math.max(0.02, period * 2));
-    delay.delayTime.value = period;
-
-    const feedback = ctx.createGain();
-    // Longer feedback for low notes, which sustain more.
-    feedback.gain.value = Math.min(0.995, 0.978 + registerFactor * 0.016);
-
-    // Losses in the string: each pass through loses high frequencies.
-    const damper = ctx.createBiquadFilter();
-    damper.type = 'lowpass';
-    damper.frequency.value = Math.max(900, 2600 + frequency * 3.2);
-    damper.Q.value = 0.0001;
+    // The brightness sweep: open at the pluck, closing as the note decays.
+    const tone = ctx.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.Q.value = 0.6;
+    const openHz = Math.min(ctx.sampleRate / 2.2, frequency * 12 + 1200);
+    const closedHz = Math.min(openHz, Math.max(frequency * 2.2, 320));
+    tone.frequency.setValueAtTime(openHz, when);
+    tone.frequency.exponentialRampToValueAtTime(closedHz, when + ring * 0.85);
 
     const envelope = ctx.createGain();
-    envelope.gain.setValueAtTime(0, when);
-    envelope.gain.linearRampToValueAtTime(level * 0.55, when + 0.004);
-    // Release once the note is over, but let it ring a little past its duration
-    // the way an unmuted string does.
-    const releaseStart = when + Math.max(0.05, duration * 0.95);
-    envelope.gain.setValueAtTime(level * 0.55, releaseStart);
+    envelope.gain.setValueAtTime(0.0001, when);
+    envelope.gain.exponentialRampToValueAtTime(level, when + 0.004);
+    // The body of the decay, then a faster release once the note is over.
+    envelope.gain.exponentialRampToValueAtTime(level * 0.28, when + Math.min(ring, 0.35));
+    const releaseAt = when + Math.max(0.06, duration * 0.92);
     envelope.gain.exponentialRampToValueAtTime(0.0001, when + ring);
 
-    source.connect(exciter);
-    exciter.connect(delay);
-    delay.connect(damper);
-    damper.connect(feedback);
-    feedback.connect(delay);
-    delay.connect(envelope);
-    envelope.connect(this.output);
+    osc.connect(tone);
+    tone.connect(envelope);
+    nodes.push(osc, tone, envelope);
 
-    // A touch of stereo spread by string, so chords do not collapse to a point.
+    // --- the pick attack ---------------------------------------------------
+    const pick = ctx.createBufferSource();
+    pick.buffer = buildPickNoise(ctx, this.cache);
+    const pickFilter = ctx.createBiquadFilter();
+    pickFilter.type = 'bandpass';
+    pickFilter.frequency.value = Math.min(ctx.sampleRate / 2.2, frequency * 6 + 900);
+    pickFilter.Q.value = 0.8;
+    const pickGain = ctx.createGain();
+    pickGain.gain.setValueAtTime(level * 0.35, when);
+    pickGain.gain.exponentialRampToValueAtTime(0.0001, when + 0.07);
+    pick.connect(pickFilter);
+    pickFilter.connect(pickGain);
+    nodes.push(pick, pickFilter, pickGain);
+
+    // --- stereo placement by string ----------------------------------------
+    let sink = this.output;
     if (string !== null && ctx.createStereoPanner) {
       const panner = ctx.createStereoPanner();
-      panner.pan.value = ((string / Math.max(1, stringCount - 1)) - 0.5) * 0.45;
-      envelope.disconnect();
-      envelope.connect(panner);
+      panner.pan.value = ((string / Math.max(1, stringCount - 1)) - 0.5) * 0.4;
       panner.connect(this.output);
+      nodes.push(panner);
+      sink = panner;
     }
-
-    source.start(when);
-    source.stop(when + Math.min(0.12, source.buffer.duration));
+    envelope.connect(sink);
+    pickGain.connect(sink);
 
     const stopAt = when + ring + 0.05;
-    return { stopAt, nodes: [source, delay, feedback, envelope] };
+    osc.start(when);
+    osc.stop(stopAt);
+    pick.start(when);
+    pick.stop(when + pick.buffer.duration);
+
+    // Nodes are explicitly torn down once the note has finished, rather than
+    // being left for the garbage collector to find.
+    const voice = {
+      stopAt,
+      stop: () => {
+        try { osc.stop(); } catch { /* already stopped */ }
+        for (const node of nodes) {
+          try { node.disconnect(); } catch { /* already disconnected */ }
+        }
+      },
+    };
+    this.voices.add(voice);
+    osc.onended = () => {
+      voice.stop();
+      this.voices.delete(voice);
+    };
+
+    return { stopAt, nodes, releaseAt };
   }
 }

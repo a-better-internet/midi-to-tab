@@ -43,8 +43,13 @@ export class TabRenderer {
     active?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
-  /** Highlight the column currently sounding, for playback follow. */
-  setPlayhead(beat) {
+  /**
+   * Highlight the column currently sounding and keep it in view.
+   *
+   * `follow` is only true while playback is running: scrolling the tab out
+   * from under someone who is reading it would be worse than not following.
+   */
+  setPlayhead(beat, { follow = false } = {}) {
     if (!this.tab) return;
     let current = null;
     for (const column of this.tab.columns) {
@@ -53,8 +58,49 @@ export class TabRenderer {
     }
     if (current === this._playheadColumn) return;
     this._playheadColumn = current;
+
+    let playingEl = null;
     for (const el of this.container.querySelectorAll('.tab-column')) {
-      el.classList.toggle('playing', Number(el.dataset.columnIndex) === current);
+      const isPlaying = Number(el.dataset.columnIndex) === current;
+      el.classList.toggle('playing', isPlaying);
+      if (isPlaying) playingEl = el;
+    }
+
+    if (follow && playingEl) this._keepInView(playingEl);
+  }
+
+  /**
+   * Scroll the tab only as far as it takes to bring the sounding column fully
+   * into view.
+   *
+   * The column is a whole system tall -- all six strings -- and the pane can be
+   * shorter than that, so scrolling to a fixed fraction of the pane height
+   * pushes the bottom strings off the edge. Correcting by the actual overflow
+   * keeps the column on screen whatever the window size, and leaves the view
+   * alone entirely while it is already visible.
+   */
+  _keepInView(element) {
+    const host = this.container;
+    const hostBox = host.getBoundingClientRect();
+    const box = element.getBoundingClientRect();
+
+    const vMargin = Math.min(24, Math.max(0, (hostBox.height - box.height) / 2));
+    const above = (hostBox.top + vMargin) - box.top;
+    const below = box.bottom - (hostBox.bottom - vMargin);
+    if (above > 0) host.scrollTop -= above;
+    else if (below > 0) host.scrollTop += Math.min(below, box.top - hostBox.top - vMargin);
+
+    const hMargin = Math.min(48, Math.max(0, (hostBox.width - box.width) / 2));
+    const left = (hostBox.left + hMargin) - box.left;
+    const right = box.right - (hostBox.right - hMargin);
+    if (left > 0) host.scrollLeft -= left;
+    else if (right > 0) host.scrollLeft += Math.min(right, box.left - hostBox.left - hMargin);
+  }
+
+  clearPlayhead() {
+    this._playheadColumn = null;
+    for (const el of this.container.querySelectorAll('.tab-column.playing')) {
+      el.classList.remove('playing');
     }
   }
 
